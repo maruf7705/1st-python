@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Aerial Tram - Coastal Line</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap');
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Outfit', sans-serif;
+            background-color: #1a1a2e; /* Dark fallback */
+            color: #ffffff;
+            touch-action: none;
+        }
+
+        #game-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none; /* Let clicks pass through to game container if needed, but we intercept specific buttons */
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            padding: 20px;
+            pointer-events: auto;
+        }
+
+        .stats-box {
+            background: rgba(25, 30, 45, 0.7);
+            backdrop-filter: blur(8px);
+            padding: 12px 20px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .stats-box .title {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #a0aec0;
+            margin-bottom: 4px;
+        }
+
+        .stats-box .value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #f6ad55;
+        }
+
+        .stats-box .subtitle {
+            font-size: 0.8rem;
+            color: #e2e8f0;
+            margin-top: 4px;
+        }
+
+        .passengers { color: #68d391 !important; }
+        
+        .streak-broken {
+            color: #fc8181;
+            font-size: 0.8rem;
+            margin-top: 5px;
+            display: none;
+            animation: fadeInOut 3s forwards;
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        /* Subtitles */
+        .subtitles-container {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+
+        .subtitles {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 25px;
+            border-radius: 20px;
+            font-size: 1.2rem;
+            text-align: center;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            max-width: 80%;
+            text-shadow: 1px 1px 2px black;
+        }
+
+        /* Bottom Bar */
+        .bottom-bar {
+            padding: 20px;
+            pointer-events: auto;
+            background: linear-gradient(to top, rgba(15, 20, 30, 0.9), transparent);
+        }
+
+        .controls-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .btn-control {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            color: white;
+            font-family: inherit;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.1s;
+            user-select: none;
+            backdrop-filter: blur(5px);
+        }
+
+        .btn-control:active, .btn-control.active {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(0.95);
+        }
+
+        .btn-accel { border-color: #48bb78; color: #48bb78; }
+        .btn-accel:active, .btn-accel.active { background: rgba(72, 187, 120, 0.2); }
+        
+        .btn-brake { border-color: #fc8181; color: #fc8181; }
+        .btn-brake:active, .btn-brake.active { background: rgba(252, 129, 129, 0.2); }
+
+        .dashboard {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            background: rgba(20, 25, 40, 0.8);
+            border-radius: 20px;
+            padding: 15px 30px;
+            backdrop-filter: blur(10px);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .speed-gauge {
+            text-align: center;
+            min-width: 80px;
+        }
+        
+        .speed-val { font-size: 1.8rem; font-weight: 700; }
+        .speed-unit { font-size: 0.7rem; color: #a0aec0; }
+
+        .route-progress {
+            flex-grow: 1;
+            position: relative;
+        }
+
+        .route-stations {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #e2e8f0;
+            margin-bottom: 5px;
+        }
+
+        .progress-track {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            position: absolute;
+            top: 0; left: 0;
+            height: 100%;
+            background: #63b3ed;
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .comfort-indicator {
+            text-align: center;
+            min-width: 80px;
+        }
+        .comfort-val { font-size: 1.2rem; font-weight: 700; color: #68d391; }
+        .comfort-lbl { font-size: 0.7rem; color: #a0aec0; }
+        
+        .road-conditions {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #a0aec0;
+            margin-top: 10px;
+        }
+
+        /* Workshop UI */
+        #workshop-ui {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 20, 30, 0.85);
+            backdrop-filter: blur(8px);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            z-index: 20;
+        }
+
+        .workshop-panel {
+            background: #1e253c;
+            padding: 30px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .workshop-panel h2 { margin-top: 0; color: #fbd38d; }
+        
+        .part-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .part-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: 0.2s;
+        }
+
+        .part-item:hover { background: rgba(255, 255, 255, 0.1); }
+        .part-item.selected { border-color: #63b3ed; background: rgba(99, 179, 237, 0.1); }
+
+        .btn-primary {
+            background: #48bb78;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 1.1rem;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        .btn-primary:hover { background: #38a169; }
+        .btn-primary:disabled { background: #718096; cursor: not-allowed; }
+
+        .workshop-progress {
+            margin-top: 20px;
+            display: none;
+        }
+        .wp-bar {
+            height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;
+            margin-top: 5px;
+        }
+        .wp-fill { height: 100%; background: #fbd38d; width: 0%; transition: width 0.1s linear; }
+
+        /* Helpers */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container"></div>
+
+    <div id="ui-layer">
+        <div class="top-bar">
+            <div class="stats-box">
+                <div class="title">Next Stop</div>
+                <div class="value" id="ui-destination">Mango Tide</div>
+                <div class="subtitle">Passengers: <span class="passengers" id="ui-passengers">12/16</span></div>
+            </div>
+            <div class="stats-box" style="text-align: right;">
+                <div class="title">Tips / Streak</div>
+                <div class="value" style="color: #fbd38d;" id="ui-tips">🪙 240</div>
+                <div class="subtitle" id="ui-streak">🔥 3 Trips</div>
+                <div class="streak-broken" id="ui-streak-broken">Streak broken. Find your balance to rebuild your tips.</div>
+            </div>
+        </div>
+
+        <div class="subtitles-container">
+            <div class="subtitles" id="ui-subtitles"></div>
+        </div>
+
+        <div class="bottom-bar" id="drive-ui">
+            <div class="controls-row">
+                <button class="btn-control btn-brake" id="btn-brake">S<br><span style="font-size:0.6rem">BRAKE</span></button>
+                <button class="btn-control btn-accel" id="btn-accel">W<br><span style="font-size:0.6rem">POWER</span></button>
+            </div>
+            
+            <div class="dashboard">
+                <div class="speed-gauge">
+                    <div class="speed-val" id="ui-speed">0</div>
+                    <div class="speed-unit">km/h</div>
+                </div>
+                <div class="route-progress">
+                    <div class="route-stations">
+                        <span id="ui-station-start">Saltlight Terminus</span>
+                        <span id="ui-station-end">Mango Tide</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" id="ui-progress"></div>
+                    </div>
+                    <div class="road-conditions" id="ui-conditions">Conditions: Steady</div>
+                </div>
+                <div class="comfort-indicator">
+                    <div class="comfort-val" id="ui-comfort">100%</div>
+                    <div class="comfort-lbl">Comfort</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="workshop-ui">
+            <div class="workshop-panel">
+                <h2>Cloudworks</h2>
+                <p style="color: #a0aec0; font-size: 0.9rem;">Oliver's Home Island</p>
+                
+                <div class="part-list" id="workshop-parts">
+                    <div class="part-item selected" data-upgrade="roof">
+                        <div>
+                            <strong>Lanterns & Luggage</strong>
+                            <div style="font-size: 0.8rem; color: #a0aec0;">Warm lighting for night trips</div>
+                        </div>
+                        <div>🪙 150</div>
+                    </div>
+                    <div class="part-item" data-upgrade="vines">
+                        <div>
+                            <strong>Overgrown Vines</strong>
+                            <div style="font-size: 0.8rem; color: #a0aec0;">Nature takes over</div>
+                        </div>
+                        <div>🪙 200</div>
+                    </div>
+                </div>
+
+                <button class="btn-primary" id="btn-upgrade">Install Part</button>
+                
+                <div class="workshop-progress" id="workshop-progress">
+                    <div id="wp-text" style="font-size:0.8rem; color:#a0aec0;">Lifting the old part...</div>
+                    <div class="wp-bar"><div class="wp-fill" id="wp-fill"></div></div>
+                </div>
+
+                <button class="btn-primary" id="btn-leave-workshop" style="margin-top: 15px; background: #4a5568;">Leave Workshop</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- Game State ---
+        const GameState = {
+            state: 'DRIVING', // 'DRIVING', 'STATION', 'WORKSHOP'
+            speed: 0,
+            maxSpeed: 60,
+            acceleration: 15,
+            braking: 30,
+            inertia: 2,
+            position: 0.01, // 0 to 1 along curve (start slightly off platform edge)
+            comfort: 100,
+            tips: 240,
+            streak: 3,
+            passengers: 12,
+            direction: 1, // 1 for Mango Tide, -1 for Saltlight
+            isAccelPressed: false,
+            isBrakePressed: false,
+            upgrades: {
+                roof: false,
+                vines: false
+            }
+        };
+
+        // --- UI Elements ---
+        const UI = {
+            speed: document.getElementById('ui-speed'),
+            progress: document.getElementById('ui-progress'),
+            comfort: document.getElementById('ui-comfort'),
+            conditions: document.getElementById('ui-conditions'),
+            subtitles: document.getElementById('ui-subtitles'),
+            destination: document.getElementById('ui-destination'),
+            stationStart: document.getElementById('ui-station-start'),
+            stationEnd: document.getElementById('ui-station-end'),
+            tips: document.getElementById('ui-tips'),
+            streak: document.getElementById('ui-streak'),
+            streakBroken: document.getElementById('ui-streak-broken'),
+            btnAccel: document.getElementById('btn-accel'),
+            btnBrake: document.getElementById('btn-brake'),
+            driveUi: document.getElementById('drive-ui'),
+            workshopUi: document.getElementById('workshop-ui'),
+            btnUpgrade: document.getElementById('btn-upgrade'),
+            btnLeave: document.getElementById('btn-leave-workshop'),
+            wpProgress: document.getElementById('workshop-progress'),
+            wpFill: document.getElementById('wp-fill'),
+            wpText: document.getElementById('wp-text'),
+            passengers: document.getElementById('ui-passengers')
+        };
+
+        function showSubtitle(text, duration = 3000) {
+            UI.subtitles.innerHTML = text;
+            UI.subtitles.style.opacity = 1;
+            setTimeout(() => { UI.subtitles.style.opacity = 0; }, duration);
+        }
+
+        function updateUI() {
+            UI.speed.innerText = Math.round(GameState.speed);
+            UI.progress.style.width = (GameState.direction === 1 ? GameState.position * 100 : (1 - GameState.position) * 100) + '%';
+            
+            // Comfort color
+            UI.comfort.innerText = Math.round(GameState.comfort) + '%';
+            if (GameState.comfort > 80) UI.comfort.style.color = '#68d391';
+            else if (GameState.comfort > 40) UI.comfort.style.color = '#f6ad55';
+            else UI.comfort.style.color = '#fc8181';
+
+            UI.tips.innerText = `🪙 ${GameState.tips}`;
+            UI.streak.innerText = `🔥 ${GameState.streak} Trips`;
+        }
+
+        // --- Input Handling ---
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'w') { GameState.isAccelPressed = true; UI.btnAccel.classList.add('active'); }
+            if (e.key.toLowerCase() === 's') { GameState.isBrakePressed = true; UI.btnBrake.classList.add('active'); }
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.key.toLowerCase() === 'w') { GameState.isAccelPressed = false; UI.btnAccel.classList.remove('active'); }
+            if (e.key.toLowerCase() === 's') { GameState.isBrakePressed = false; UI.btnBrake.classList.remove('active'); }
+        });
+
+        // Touch controls
+        const addTouch = (elem, flagProp) => {
+            elem.addEventListener('mousedown', () => { GameState[flagProp] = true; elem.classList.add('active'); });
+            elem.addEventListener('mouseup', () => { GameState[flagProp] = false; elem.classList.remove('active'); });
+            elem.addEventListener('mouseleave', () => { GameState[flagProp] = false; elem.classList.remove('active'); });
+            elem.addEventListener('touchstart', (e) => { e.preventDefault(); GameState[flagProp] = true; elem.classList.add('active'); }, {passive:false});
+            elem.addEventListener('touchend', (e) => { e.preventDefault(); GameState[flagProp] = false; elem.classList.remove('active'); }, {passive:false});
+        };
+        addTouch(UI.btnAccel, 'isAccelPressed');
+        addTouch(UI.btnBrake, 'isBrakePressed');
+
+        // --- Three.js Setup ---
+        const container = document.getElementById('game-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a3a); // Dusk/Night blue-purple
+        scene.fog = new THREE.FogExp2(0x1a1a3a, 0.002);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404060, 1.5);
+        scene.add(ambientLight);
+
+        const moonLight = new THREE.DirectionalLight(0xaaccff, 1.5);
+        moonLight.position.set(100, 200, 50);
+        moonLight.castShadow = true;
+        moonLight.shadow.camera.near = 0.5;
+        moonLight.shadow.camera.far = 500;
+        moonLight.shadow.camera.left = -100;
+        moonLight.shadow.camera.right = 100;
+        moonLight.shadow.camera.top = 100;
+        moonLight.shadow.camera.bottom = -100;
+        moonLight.shadow.mapSize.width = 2048;
+        moonLight.shadow.mapSize.height = 2048;
+        scene.add(moonLight);
+
+        // --- Procedural Generation Builders ---
+        const materials = {
+            wood: new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.8 }),
+            tramBody: new THREE.MeshStandardMaterial({ color: 0x1e3f20, roughness: 0.4, metalness: 0.2 }),
+            tramRoof: new THREE.MeshStandardMaterial({ color: 0x8a9a5b, roughness: 0.6 }),
+            glass: new THREE.MeshPhysicalMaterial({ color: 0xaaccff, transmission: 0.9, opacity: 1, transparent: true, roughness: 0.1 }),
+            rock: new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.9, flatShading: true }),
+            grass: new THREE.MeshStandardMaterial({ color: 0x4a7c59, roughness: 0.8, flatShading: true }),
+            wall: new THREE.MeshStandardMaterial({ color: 0xfff3e0, roughness: 0.9 }),
+            roofRed: new THREE.MeshStandardMaterial({ color: 0xb53c27, roughness: 0.8 }),
+            water: new THREE.MeshStandardMaterial({ color: 0x0f2a4a, roughness: 0.1, metalness: 0.8, transparent: true, opacity: 0.9 }),
+            cloud: new THREE.MeshStandardMaterial({ color: 0xccccdd, roughness: 1, transparent: true, opacity: 0.8, flatShading: true }),
+            rail: new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.4 }),
+            cable: new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.5, roughness: 0.5 })
+        };
+
+        function createHouse() {
+            const group = new THREE.Group();
+            const base = new THREE.Mesh(new THREE.BoxGeometry(10, 8, 10), materials.wall);
+            base.position.y = 4;
+            base.castShadow = true;
+            base.receiveShadow = true;
+            group.add(base);
+
+            const roof = new THREE.Mesh(new THREE.ConeGeometry(8, 6, 4), materials.roofRed);
+            roof.rotation.y = Math.PI / 4;
+            roof.position.y = 11;
+            roof.castShadow = true;
+            group.add(roof);
+
+            // Window glow
+            const windowGeo = new THREE.PlaneGeometry(2, 2);
+            const windowMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+            const win1 = new THREE.Mesh(windowGeo, windowMat);
+            win1.position.set(0, 5, 5.1);
+            group.add(win1);
+            
+            const pointLight = new THREE.PointLight(0xffaa00, 1, 30);
+            pointLight.position.set(0, 5, 6);
+            group.add(pointLight);
+
+            return group;
+        }
+
+        function createTree() {
+            const group = new THREE.Group();
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 4), materials.wood);
+            trunk.position.y = 2;
+            trunk.castShadow = true;
+            group.add(trunk);
+            
+            const leaves = new THREE.Mesh(new THREE.IcosahedronGeometry(3, 0), materials.grass);
+            leaves.position.y = 5;
+            leaves.castShadow = true;
+            group.add(leaves);
+            return group;
+        }
+
+        function createIsland(name, isWorkshop = false) {
+            const group = new THREE.Group();
+            
+            // Base rock
+            const rockGeo = new THREE.IcosahedronGeometry(40, 1);
+            // Distort rock
+            const pos = rockGeo.attributes.position;
+            for(let i=0; i<pos.count; i++) {
+                pos.setY(i, pos.getY(i) * 0.5);
+                if (pos.getY(i) > 0) pos.setY(i, 0); // Flat top
+            }
+            rockGeo.computeVertexNormals();
+            
+            const rock = new THREE.Mesh(rockGeo, materials.rock);
+            rock.position.y = -5;
+            rock.castShadow = true;
+            rock.receiveShadow = true;
+            group.add(rock);
+
+            // Grass top
+            const grassGeo = new THREE.CylinderGeometry(38, 38, 2, 16);
+            const grass = new THREE.Mesh(grassGeo, materials.grass);
+            grass.position.y = -1;
+            grass.receiveShadow = true;
+            group.add(grass);
+
+            // Decorate
+            if (!isWorkshop) {
+                for(let i=0; i<8; i++) {
+                    const house = createHouse();
+                    const angle = Math.random() * Math.PI * 2;
+                    const radius = 10 + Math.random() * 20;
+                    house.position.set(Math.cos(angle)*radius, 0, Math.sin(angle)*radius);
+                    house.rotation.y = Math.random() * Math.PI;
+                    group.add(house);
+                }
+                for(let i=0; i<15; i++) {
+                    const tree = createTree();
+                    const angle = Math.random() * Math.PI * 2;
+                    const radius = 5 + Math.random() * 30;
+                    tree.position.set(Math.cos(angle)*radius, 0, Math.sin(angle)*radius);
+                    group.add(tree);
+                }
+                
+                // Platform
+                const platform = new THREE.Mesh(new THREE.BoxGeometry(20, 2, 10), materials.wood);
+                platform.position.set(0, 1, 35);
+                group.add(platform);
+                
+                // Sign
+                const signLight = new THREE.PointLight(0xffdd88, 2, 40);
+                signLight.position.set(0, 10, 35);
+                group.add(signLight);
+            } else {
+                // Workshop building
+                const wsBase = new THREE.Mesh(new THREE.BoxGeometry(30, 15, 20), materials.wall);
+                wsBase.position.y = 7.5;
+                group.add(wsBase);
+                const wsRoof = new THREE.Mesh(new THREE.CylinderGeometry(15, 15, 30, 32, 1, false, 0, Math.PI), materials.roofRed);
+                wsRoof.rotation.z = Math.PI / 2;
+                wsRoof.position.y = 15;
+                group.add(wsRoof);
+                
+                const light = new THREE.PointLight(0xffaa00, 3, 100);
+                light.position.set(0, 20, 0);
+                group.add(light);
+            }
+
+            return group;
+        }
+
+        // --- Build World ---
+        // Ocean
+        const ocean = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), materials.water);
+        ocean.rotation.x = -Math.PI / 2;
+        ocean.position.y = -100;
+        scene.add(ocean);
+
+        // Clouds
+        for(let i=0; i<40; i++) {
+            const cloud = new THREE.Mesh(new THREE.IcosahedronGeometry(15 + Math.random()*20, 0), materials.cloud);
+            cloud.position.set(
+                (Math.random() - 0.5) * 800,
+                -50 + Math.random() * 50,
+                (Math.random() - 0.5) * 800
+            );
+            cloud.scale.set(1, 0.5, 1);
+            scene.add(cloud);
+        }
+
+        // Stars
+        const starGeo = new THREE.BufferGeometry();
+        const starMat = new THREE.PointsMaterial({color: 0xffffff, size: 2});
+        const starPts = [];
+        for(let i=0; i<1000; i++) {
+            starPts.push((Math.random()-0.5)*1000, 200 + Math.random()*500, (Math.random()-0.5)*1000);
+        }
+        starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPts, 3));
+        const stars = new THREE.Points(starGeo, starMat);
+        scene.add(stars);
+
+        // Track & Islands
+        const island1 = createIsland("Saltlight Terminus");
+        island1.position.set(0, 0, 0);
+        scene.add(island1);
+
+        const island2 = createIsland("Mango Tide");
+        island2.position.set(200, 50, -400); // Higher and far away
+        scene.add(island2);
+        
+        const workshopIsland = createIsland("Cloudworks", true);
+        workshopIsland.position.set(-200, 100, -200);
+        scene.add(workshopIsland);
+
+        // Track Curve
+        const trackPoints = [
+            new THREE.Vector3(0, 15, 30), // Start above island 1 platform
+            new THREE.Vector3(20, 10, -50), // Downhill
+            new THREE.Vector3(100, 20, -150), // Over sea curve
+            new THREE.Vector3(50, 40, -250), // Steep up curve
+            new THREE.Vector3(200, 65, -370)  // Arrive above island 2 platform
+        ];
+        const trackCurve = new THREE.CatmullRomCurve3(trackPoints);
+        
+        // Track visual
+        const trackGeo = new THREE.TubeGeometry(trackCurve, 200, 0.5, 8, false);
+        const trackMesh = new THREE.Mesh(trackGeo, materials.cable);
+        scene.add(trackMesh);
+
+        // --- Build Tram ---
+        const tram = new THREE.Group();
+        
+        // Cabin
+        const cabinGeo = new THREE.BoxGeometry(8, 6, 14);
+        const cabin = new THREE.Mesh(cabinGeo, materials.tramBody);
+        cabin.position.y = -3; // Hanging down from track
+        cabin.castShadow = true;
+        tram.add(cabin);
+
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(8.2, 1, 14.2), materials.tramRoof);
+        roof.position.y = 0.5;
+        tram.add(roof);
+        
+        // Windows
+        const windowF = new THREE.Mesh(new THREE.BoxGeometry(7, 3, 0.5), materials.glass);
+        windowF.position.set(0, -2.5, 7);
+        tram.add(windowF);
+        const windowB = new THREE.Mesh(new THREE.BoxGeometry(7, 3, 0.5), materials.glass);
+        windowB.position.set(0, -2.5, -7);
+        tram.add(windowB);
+        const windowL = new THREE.Mesh(new THREE.BoxGeometry(0.5, 3, 12), materials.glass);
+        windowL.position.set(4, -2.5, 0);
+        tram.add(windowL);
+        const windowR = new THREE.Mesh(new THREE.BoxGeometry(0.5, 3, 12), materials.glass);
+        windowR.position.set(-4, -2.5, 0);
+        tram.add(windowR);
+
+        // Hanger (connecting to track)
+        const hanger = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 6), materials.wood);
+        hanger.position.y = 3;
+        tram.add(hanger);
+        const wheelObj = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1), materials.rail);
+        wheelObj.rotation.z = Math.PI/2;
+        wheelObj.position.y = 6;
+        tram.add(wheelObj);
+
+        // Interior light
+        const tramLight = new THREE.PointLight(0xffddaa, 1, 20);
+        tramLight.position.set(0, -2, 0);
+        tram.add(tramLight);
+
+        // Upgrades (Hidden initially)
+        const upgradeLuggage = new THREE.Group();
+        const lug1 = new THREE.Mesh(new THREE.BoxGeometry(4, 2, 6), materials.wood);
+        lug1.position.set(0, 2, 0);
+        upgradeLuggage.add(lug1);
+        const lantern = new THREE.PointLight(0xffaa00, 1.5, 30);
+        lantern.position.set(0, 3, 6);
+        const lanternMesh = new THREE.Mesh(new THREE.SphereGeometry(0.5), new THREE.MeshBasicMaterial({color: 0xffaa00}));
+        lanternMesh.position.copy(lantern.position);
+        upgradeLuggage.add(lantern);
+        upgradeLuggage.add(lanternMesh);
+        upgradeLuggage.visible = false;
+        tram.add(upgradeLuggage);
+
+        const upgradeVines = new THREE.Group();
+        for(let i=0; i<10; i++) {
+            const vine = new THREE.Mesh(new THREE.BoxGeometry(0.5, 4, 0.5), materials.grass);
+            vine.position.set((Math.random()-0.5)*8, -4 + Math.random()*2, (Math.random()-0.5)*14);
+            upgradeVines.add(vine);
+        }
+        upgradeVines.visible = false;
+        tram.add(upgradeVines);
+
+        scene.add(tram);
+
+        // --- Camera Setup ---
+        // Camera will follow behind the tram
+        const camOffset = new THREE.Vector3(0, 10, -25); // Behind and slightly up
+
+        // --- Game Logic Functions ---
+        let lastTime = performance.now();
+        let crosswindActive = false;
+        let windTimer = 0;
+        let previousSpeed = 0;
+
+        function updatePhysics(dt) {
+            // Acceleration & Braking
+            if (GameState.isAccelPressed) {
+                GameState.speed += GameState.acceleration * dt;
+            } else if (GameState.isBrakePressed) {
+                GameState.speed -= GameState.braking * dt;
+            } else {
+                // Natural deceleration / friction
+                GameState.speed -= GameState.inertia * dt * Math.sign(GameState.speed);
+            }
+
+            // Cap speed
+            if (GameState.speed > GameState.maxSpeed) GameState.speed = GameState.maxSpeed;
+            if (GameState.speed < 0) GameState.speed = 0; // No reverse
+
+            // Calculate position delta
+            // Track total length roughly
+            const trackLen = trackCurve.getLength(); 
+            // speed is km/h, let's scale to Three units/sec loosely (1 km/h = 1 unit/sec for arcade feel)
+            const unitsMoved = GameState.speed * dt;
+            const posDelta = unitsMoved / trackLen;
+
+            GameState.position += posDelta * GameState.direction;
+
+            // Check boundaries
+            if (GameState.position >= 0.99) {
+                GameState.position = 0.99;
+                GameState.speed = 0;
+                arriveAtStation(1);
+            } else if (GameState.position <= 0.01) {
+                GameState.position = 0.01;
+                GameState.speed = 0;
+                arriveAtStation(0);
+            }
+
+            // --- Comfort System ---
+            // Sudden acceleration/braking punishes comfort
+            const accelG = (GameState.speed - previousSpeed) / dt;
+            if (Math.abs(accelG) > 20) {
+                GameState.comfort -= Math.abs(accelG) * 0.05 * dt;
+            }
+
+            // Curvature punishment (going fast on corners)
+            // Approximate curvature by looking ahead
+            const p1 = trackCurve.getPointAt(GameState.position);
+            const p2 = trackCurve.getPointAt(Math.min(1.0, GameState.position + 0.01));
+            const p3 = trackCurve.getPointAt(Math.min(1.0, GameState.position + 0.02));
+            const d1 = p2.clone().sub(p1).normalize();
+            const d2 = p3.clone().sub(p2).normalize();
+            const angle = d1.angleTo(d2); // Rads
+            
+            if (angle > 0.05 && GameState.speed > 30) {
+                GameState.comfort -= (angle * GameState.speed) * 0.1 * dt;
+                // Sway the tram
+                tram.rotation.z = THREE.MathUtils.lerp(tram.rotation.z, angle * 10 * (GameState.direction), 0.1);
+            } else {
+                // Recover tilt
+                tram.rotation.z = THREE.MathUtils.lerp(tram.rotation.z, 0, 0.05);
+            }
+
+            // Crosswinds
+            windTimer -= dt;
+            if (windTimer <= 0) {
+                crosswindActive = Math.random() > 0.7; // 30% chance
+                windTimer = 5 + Math.random() * 5;
+                UI.conditions.innerText = crosswindActive ? "Conditions: Crosswind!" : "Conditions: Steady";
+                UI.conditions.style.color = crosswindActive ? "#fc8181" : "#a0aec0";
+            }
+
+            if (crosswindActive && GameState.speed > 0) {
+                GameState.comfort -= 2 * dt;
+                tram.rotation.z += (Math.random() - 0.5) * 0.05; // Jitter
+            }
+
+            // Body Pitch (accel/brake)
+            tram.rotation.x = THREE.MathUtils.lerp(tram.rotation.x, -accelG * 0.005, 0.1);
+
+            // Clamp comfort
+            GameState.comfort = Math.max(0, Math.min(100, GameState.comfort));
+
+            previousSpeed = GameState.speed;
+
+            // Apply Position and Rotation to Tram
+            const point = trackCurve.getPointAt(GameState.position);
+            
+            // Fix: getTangent can sometimes fail at extreme 0 or 1, clamp slightly
+            const safePos = Math.max(0.001, Math.min(0.999, GameState.position));
+            const tangent = trackCurve.getTangentAt(safePos);
+            
+            tram.position.copy(point);
+            
+            // Align tram to track
+            const up = new THREE.Vector3(0, 1, 0);
+            
+            // LookAt based rotation
+            const lookTarget = point.clone().add(tangent.clone().multiplyScalar(GameState.direction));
+            tram.lookAt(lookTarget);
+
+            // Camera follow
+            const idealCamPos = point.clone().sub(tangent.clone().multiplyScalar(25 * GameState.direction));
+            idealCamPos.y += 10;
+            camera.position.lerp(idealCamPos, 0.1);
+            camera.lookAt(point);
+        }
+
+        let isAtStation = false;
+
+        function arriveAtStation(stationIndex) {
+            if (isAtStation) return;
+            isAtStation = true;
+            GameState.state = 'STATION';
+            UI.btnAccel.disabled = true;
+            UI.btnBrake.disabled = true;
+            
+            // Score comfort
+            if (GameState.comfort > 80) {
+                const bonus = Math.round(GameState.comfort);
+                GameState.tips += bonus;
+                GameState.streak++;
+                showSubtitle(`Smooth ride! +${bonus} Tips. Doors opening...`, 4000);
+            } else if (GameState.comfort <= 0) {
+                GameState.streak = 0;
+                UI.streakBroken.style.display = 'block';
+                setTimeout(()=> UI.streakBroken.style.display='none', 3000);
+                showSubtitle(`Terrible ride. Passengers are sick. Doors opening...`, 4000);
+            } else {
+                GameState.tips += 20;
+                GameState.streak++;
+                showSubtitle(`Arrived safely. +20 Tips. Doors opening...`, 4000);
+            }
+            updateUI();
+
+            setTimeout(() => {
+                showSubtitle("Please wait... Boarding.", 3000);
+                setTimeout(() => {
+                    // Reset for next trip
+                    GameState.direction *= -1; // Reverse direction
+                    GameState.comfort = 100;
+                    GameState.passengers = 10 + Math.floor(Math.random()*6);
+                    UI.passengers.innerText = `${GameState.passengers}/16`;
+                    
+                    if (stationIndex === 1) {
+                        UI.destination.innerText = "Saltlight Terminus";
+                        UI.stationStart.innerText = "Mango Tide";
+                        UI.stationEnd.innerText = "Saltlight Terminus";
+                    } else {
+                        UI.destination.innerText = "Mango Tide";
+                        UI.stationStart.innerText = "Saltlight Terminus";
+                        UI.stationEnd.innerText = "Mango Tide";
+                    }
+
+                    // Chance to go to workshop if at Saltlight (index 0)
+                    if (stationIndex === 0 && Math.random() > 0.5) {
+                        enterWorkshop();
+                    } else {
+                        showSubtitle("All aboard! Next stop: " + UI.destination.innerText, 3000);
+                        isAtStation = false;
+                        GameState.state = 'DRIVING';
+                        UI.btnAccel.disabled = false;
+                        UI.btnBrake.disabled = false;
+                        
+                        // Push slightly away from boundary to allow driving again
+                        GameState.position += 0.01 * GameState.direction;
+                    }
+                }, 3500);
+            }, 4500);
+        }
+
+        // --- Workshop Logic ---
+        let selectedUpgrade = 'roof';
+        
+        document.querySelectorAll('.part-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                document.querySelectorAll('.part-item').forEach(i => i.classList.remove('selected'));
+                item.classList.add('selected');
+                selectedUpgrade = item.dataset.upgrade;
+                
+                const cost = selectedUpgrade === 'roof' ? 150 : 200;
+                UI.btnUpgrade.disabled = GameState.tips < cost || GameState.upgrades[selectedUpgrade];
+                if(GameState.upgrades[selectedUpgrade]) UI.btnUpgrade.innerText = "Already Installed";
+                else UI.btnUpgrade.innerText = `Install Part (🪙 ${cost})`;
+            });
+        });
+
+        function enterWorkshop() {
+            GameState.state = 'WORKSHOP';
+            UI.driveUi.style.display = 'none';
+            UI.workshopUi.style.display = 'flex';
+            showSubtitle(""); // clear
+            
+            // Move camera to look at workshop
+            tram.position.copy(workshopIsland.position).add(new THREE.Vector3(0, 15, 0));
+            tram.rotation.set(0,0,0);
+            camera.position.copy(workshopIsland.position).add(new THREE.Vector3(-30, 40, -30));
+            camera.lookAt(tram.position);
+            
+            // Refresh buttons
+            const cost = selectedUpgrade === 'roof' ? 150 : 200;
+            UI.btnUpgrade.disabled = GameState.tips < cost || GameState.upgrades[selectedUpgrade];
+            if(GameState.upgrades[selectedUpgrade]) UI.btnUpgrade.innerText = "Already Installed";
+            else UI.btnUpgrade.innerText = `Install Part (🪙 ${cost})`;
+        }
+
+        UI.btnUpgrade.addEventListener('click', () => {
+            const cost = selectedUpgrade === 'roof' ? 150 : 200;
+            if (GameState.tips >= cost && !GameState.upgrades[selectedUpgrade]) {
+                GameState.tips -= cost;
+                GameState.upgrades[selectedUpgrade] = true;
+                updateUI();
+                UI.btnUpgrade.disabled = true;
+                
+                // Animate progress
+                UI.wpProgress.style.display = 'block';
+                UI.wpFill.style.width = '0%';
+                
+                let p = 0;
+                UI.wpText.innerText = "Hearth leaves — Lifting the old part...";
+                const int = setInterval(() => {
+                    p += 5;
+                    UI.wpFill.style.width = p + '%';
+                    if (p === 50) UI.wpText.innerText = "Little Companion — Preparing the tram...";
+                    if (p >= 100) {
+                        clearInterval(int);
+                        UI.wpProgress.style.display = 'none';
+                        // Apply visual upgrade
+                        if (selectedUpgrade === 'roof') upgradeLuggage.visible = true;
+                        if (selectedUpgrade === 'vines') upgradeVines.visible = true;
+                        UI.btnUpgrade.innerText = "Installed!";
+                    }
+                }, 100);
+            }
+        });
+
+        UI.btnLeave.addEventListener('click', () => {
+            UI.workshopUi.style.display = 'none';
+            UI.driveUi.style.display = 'block';
+            isAtStation = false;
+            GameState.state = 'DRIVING';
+            UI.btnAccel.disabled = false;
+            UI.btnBrake.disabled = false;
+            
+            // Reset position to start of track (Saltlight)
+            GameState.position = 0.01;
+            GameState.direction = 1;
+            UI.destination.innerText = "Mango Tide";
+            
+            // Restore proper tram transform for track
+            const p = trackCurve.getPointAt(GameState.position);
+            tram.position.copy(p);
+            
+            showSubtitle("All aboard! Returning to Coastal Line.", 3000);
+        });
+
+        // --- Resize ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- Main Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const now = performance.now();
+            const dt = (now - lastTime) / 1000;
+            lastTime = now;
+
+            if (GameState.state === 'DRIVING') {
+                updatePhysics(dt);
+                updateUI();
+            } else if (GameState.state === 'WORKSHOP') {
+                // Gentle spin for workshop camera
+                const time = now * 0.0001;
+                camera.position.x = workshopIsland.position.x + Math.cos(time) * 40;
+                camera.position.z = workshopIsland.position.z + Math.sin(time) * 40;
+                camera.lookAt(tram.position);
+            }
+
+            // Ambient animations (clouds)
+            scene.children.forEach(c => {
+                if(c.geometry && c.geometry.type === 'IcosahedronGeometry' && c.position.y > -50 && c.position.y < 50) { // lazy cloud check
+                    c.position.x += 2 * dt;
+                    if(c.position.x > 800) c.position.x = -800;
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        // Start
+        updateUI();
+        showSubtitle("Saltlight Terminus. Hold W to depart.", 5000);
+        animate();
+
+    </script>
+</body>
+</html>
