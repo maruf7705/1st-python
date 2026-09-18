@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AeroPulse — Apple High Performance 3D Runner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Apple typography: SF Pro system fallback + Inter for clean Apple metrics -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./src/style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./src/vendor/three.module.js",
+      "three/addons/loaders/GLTFLoader.js": "./src/vendor/GLTFLoader.js",
+      "three/addons/loaders/GLTFLoader": "./src/vendor/GLTFLoader.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <!-- 3D Canvas Viewport -->
+  <div id="game-container">
+    <canvas id="webgl-canvas"></canvas>
+    <canvas id="speed-lines-canvas"></canvas>
+
+    <!-- Speed Lines Vignette Overlay -->
+    <div id="speed-vignette"></div>
+
+    <!-- Near Miss / Shock Flash Overlay -->
+    <div id="flash-overlay"></div>
+
+    <!-- Floating Score Popups Container -->
+    <div id="floating-scores"></div>
+
+    <!-- Combo Celebration Milestone Banner -->
+    <div id="combo-celebration" class="hidden">
+      <div class="celebration-pill">
+        <span id="celebration-icon">⚡</span>
+        <span id="celebration-title">STREAK x5!</span>
+      </div>
+    </div>
+
+    <!-- Apple Dynamic Island Biome Banner -->
+    <div id="biome-banner" class="hidden">
+      <div class="dynamic-island-banner">
+        <span class="biome-dot"></span>
+        <span id="biome-name">Neo-Apex City</span>
+        <span class="biome-sub">Zone Entered</span>
+      </div>
+    </div>
+
+    <!-- Apple Floating Glass HUD -->
+    <div id="hud" class="hidden">
+      <!-- Top Left: FPS & Speed Indicator -->
+      <div class="hud-group hud-left">
+        <div class="apple-capsule fps-capsule">
+          <span class="status-indicator"></span>
+          <span id="fps-counter">144 FPS</span>
+        </div>
+        <div class="apple-capsule speed-capsule">
+          <span class="capsule-label">SPEED</span>
+          <span id="hud-speed" class="capsule-value">35 <small>km/h</small></span>
+        </div>
+      </div>
+
+      <!-- Top Center: Apple Dynamic Island (Score & Distance) -->
+      <div class="hud-center">
+        <div class="dynamic-island-pill">
+          <div class="island-item">
+            <span class="island-label">DISTANCE</span>
+            <span id="hud-distance" class="island-val">0 m</span>
+          </div>
+          <div class="island-divider"></div>
+          <div class="island-item primary-metric">
+            <span class="island-label">SCORE</span>
+            <span id="hud-score" class="island-val bold">000000</span>
+          </div>
+          <div id="combo-container" class="combo-badge">
+            <span id="combo-text">x1</span>
+            <div class="combo-progress-bar"><div id="combo-bar"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Right: Currencies & Environment Control -->
+      <div class="hud-group hud-right">
+        <div class="apple-capsule currency-capsule">
+          <div class="curr-tag gold-tag" title="Gold Coin (+1)">
+            <span class="dot-icon gold-dot"></span>
+            <span id="count-gold">0</span>
+          </div>
+          <div class="curr-tag plat-tag" title="Platinum Coin (+2)">
+            <span class="dot-icon plat-dot"></span>
+            <span id="count-plat">0</span>
+          </div>
+          <div class="curr-tag dia-tag" title="Diamond Gem (+5)">
+            <span class="dot-icon dia-dot"></span>
+            <span id="count-dia">0</span>
+          </div>
+        </div>
+
+        <button id="btn-toggle-daynight" class="apple-circle-btn" title="Toggle Appearance">
+          <span id="daynight-icon">☀️</span>
+        </button>
+      </div>
+
+      <!-- Active Power-up Dynamic Indicators -->
+      <div id="powerup-hud">
+        <div id="magnet-timer" class="apple-power-pill hidden">
+          <span class="p-symbol">🧲</span>
+          <span class="p-name">Magnet</span>
+          <div class="p-slider"><div id="magnet-fill" class="p-progress"></div></div>
+        </div>
+        <div id="brake-timer" class="apple-power-pill hidden">
+          <span class="p-symbol">⏱️</span>
+          <span class="p-name">Brake</span>
+          <div class="p-slider"><div id="brake-fill" class="p-progress orange"></div></div>
+        </div>
+      </div>
+
+      <!-- Near Miss Apple Notification -->
+      <div id="near-miss-banner" class="near-miss-pill hidden">
+        <span class="nm-icon">⚡</span>
+        <span class="nm-text">Close Call</span>
+        <span class="nm-bonus">+50</span>
+      </div>
+
+      <!-- Footnote Controls -->
+      <div class="apple-footnote">Swipe or Arrows to Steer • Up Jump • Down Slide</div>
+    </div>
+
+    <!-- Apple Start / Hero Sheet -->
+    <div id="menu-screen" class="screen-overlay">
+      <!-- Left side: Apple Hero Title Presentation -->
+      <div class="hero-showcase-label">
+        <span class="apple-eyebrow">HIGH PERFORMANCE RUNNER</span>
+        <h1 id="hero-display-name" class="hero-name">Leo</h1>
+        <p id="hero-display-sub" class="hero-sub">Kinetic Striker with Custom Tuned 144Hz Rig</p>
+      </div>
+
+      <!-- Right side: Apple Frosted Glass Sheet -->
+      <div class="apple-modal-sheet">
+        <!-- App Title Header -->
+        <div class="sheet-header">
+          <div class="app-icon-squircle">
+            <span>⚡</span>
+          </div>
+          <div class="sheet-titles">
+            <h2>AeroPulse</h2>
+            <p>Apple HIG Design Edition</p>
+          </div>
+        </div>
+
+        <!-- SwiftUI Style Segmented Character Picker -->
+        <div class="segmented-control-wrapper">
+          <span class="control-section-label">RUNNER PROFILE</span>
+          <div class="apple-segmented-control">
+            <button id="card-leo" class="segment-btn active" data-char="boy">
+              <span class="seg-icon">🏃‍♂️</span>
+              <span class="seg-name">Leo</span>
+            </button>
+            <button id="card-nova" class="segment-btn" data-char="girl">
+              <span class="seg-icon">🏃‍♀️</span>
+              <span class="seg-name">Nova</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Runner Attributes Card -->
+        <div class="apple-inset-group">
+          <div class="inset-row">
+            <span class="row-label">Agility Response</span>
+            <div class="apple-gauge-track"><div class="apple-gauge-fill" style="width: 95%"></div></div>
+          </div>
+          <div class="inset-row">
+            <span class="row-label">Dynamic Air Hang</span>
+            <div class="apple-gauge-track"><div class="apple-gauge-fill" style="width: 88%"></div></div>
+          </div>
+          <div class="inset-row">
+            <span class="row-label">Physics Refresh</span>
+            <span class="row-val">144 Hz Sub-stepped</span>
+          </div>
+        </div>
+
+        <!-- Appearance Picker (Solar / Midnight / Auto) -->
+        <div class="segmented-control-wrapper">
+          <span class="control-section-label">APPEARANCE</span>
+          <div class="apple-segmented-control appearance-segmented">
+            <button class="segment-btn active" id="opt-day" data-mode="day">Light</button>
+            <button class="segment-btn" id="opt-night" data-mode="night">Dark</button>
+            <button class="segment-btn" id="opt-cycle" data-mode="cycle">Auto</button>
+          </div>
+        </div>
+
+        <!-- Primary Action Buttons Row -->
+        <div class="menu-actions-row">
+          <button id="btn-start" class="apple-action-btn primary-start">
+            <span>Start Run</span>
+          </button>
+          <button id="btn-open-shop" class="apple-action-btn secondary-shop">
+            <span>⚡ Armory & Upgrades</span>
+          </button>
+        </div>
+
+        <!-- Minimalist Keyboard Short-cuts List -->
+        <div class="apple-keys-strip">
+          <div class="key-item"><kbd>A</kbd><kbd>D</kbd><span>Steer / Wall Run</span></div>
+          <div class="key-item"><kbd>Space</kbd><span>Jump / Air Dash</span></div>
+          <div class="key-item"><kbd>S</kbd><span>Slide</span></div>
+          <div class="key-item"><kbd>Shift</kbd><span>Brake</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Apple Armory & Shop Sheet -->
+    <div id="shop-modal" class="screen-overlay hidden"></div>
+
+    <!-- Apple Workout Summary Sheet (Game Over) -->
+    <div id="game-over-screen" class="screen-overlay hidden">
+      <div class="apple-modal-sheet summary-sheet">
+        <!-- Summary Header -->
+        <div class="summary-header">
+          <span class="apple-eyebrow error-tint">RUN COMPLETE</span>
+          <h2>Telemetrics</h2>
+          <p>Recorded by Apple High-Precision Core</p>
+        </div>
+
+        <!-- 2x2 Metric Cards (Apple Fitness Style) -->
+        <div class="apple-metric-grid">
+          <div class="metric-card">
+            <span class="metric-caption">FINAL SCORE</span>
+            <span id="res-score" class="metric-value action-color">000000</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-caption">PERSONAL BEST</span>
+            <span id="res-best" class="metric-value">000000</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-caption">TOTAL DISTANCE</span>
+            <span id="res-distance" class="metric-value">0 m</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-caption">MAX STREAK</span>
+            <span id="res-combo" class="metric-value">x1</span>
+          </div>
+        </div>
+
+        <!-- Currency Earned Row -->
+        <div class="apple-currency-bar">
+          <div class="curr-chip"><span class="dot-icon gold-dot"></span> Gold <strong id="res-gold">0</strong></div>
+          <div class="curr-chip"><span class="dot-icon plat-dot"></span> Plat <strong id="res-plat">0</strong></div>
+          <div class="curr-chip"><span class="dot-icon dia-dot"></span> Diamond <strong id="res-dia">0</strong></div>
+        </div>
+
+        <!-- Primary Actions Row -->
+        <div class="menu-actions-row">
+          <button id="btn-restart" class="apple-action-btn primary-start">
+            <span>Run Again</span>
+          </button>
+          <button id="btn-gameover-shop" class="apple-action-btn secondary-shop">
+            <span>⚡ Armory</span>
+          </button>
+        </div>
+        <div class="retry-hint">Press <kbd>Space</kbd> or <kbd>Return</kbd> to retry</div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

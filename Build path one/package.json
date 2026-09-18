@@ -1,0 +1,10 @@
+{
+  "name": "zenith-runner-144",
+  "private": true,
+  "version": "1.0.0",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  }
+}
