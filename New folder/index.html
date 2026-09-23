@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRISM DASH — 3D Momentum Runner</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+  body { font-family: 'Segoe UI', 'Arial', sans-serif; color: #eef6ff; user-select: none; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .hidden { display: none !important; }
+
+  /* ---------- HUD ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity .4s; }
+  body.playing #hud { opacity: 1; }
+  .hud-box {
+    position: absolute; padding: 10px 16px;
+    background: linear-gradient(160deg, rgba(8,14,26,.72), rgba(8,14,26,.45));
+    border: 1px solid rgba(90,220,255,.25); border-radius: 10px;
+    backdrop-filter: blur(4px); text-shadow: 0 0 8px rgba(0,200,255,.45);
+  }
+  #hud-tl { top: 14px; left: 14px; min-width: 150px; }
+  #hud-tc { top: 14px; left: 50%; transform: translateX(-50%); text-align: center; }
+  #hud-tr { top: 14px; right: 14px; font-variant-numeric: tabular-nums; }
+  #hud-bl { bottom: 14px; left: 14px; }
+  #hud-br { bottom: 14px; right: 14px; text-align: right; min-width: 190px; }
+  .label { font-size: 10px; letter-spacing: 2px; color: #7fd8ff; opacity: .85; }
+  #score { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; color: #fff; }
+  #rings-wrap { display: flex; align-items: center; gap: 8px; }
+  #ring-icon { width: 18px; height: 18px; border: 4px solid #ffc832; border-radius: 50%;
+    box-shadow: 0 0 10px #ffb000, inset 0 0 4px #ffb000; }
+  #rings { font-size: 24px; font-weight: 700; color: #ffd75e; font-variant-numeric: tabular-nums; }
+  #time { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  #zone { font-size: 11px; letter-spacing: 2.5px; color: #9fe8ff; margin-top: 2px; }
+  #fps { font-size: 13px; color: #8fff9f; }
+  #speed { font-size: 40px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
+    color: #fff; text-shadow: 0 0 14px rgba(255,120,50,.55); }
+  #speed-unit { font-size: 11px; letter-spacing: 2px; color: #ffc38a; }
+  #speedbar { width: 180px; height: 8px; background: rgba(255,255,255,.12); border-radius: 4px;
+    margin-top: 6px; overflow: hidden; margin-left: auto; }
+  #speedbar-fill { height: 100%; width: 0%; background: linear-gradient(90deg,#ffb347,#ff5533);
+    border-radius: 4px; transition: width .08s linear; }
+  #boost-meter { width: 180px; height: 6px; background: rgba(255,255,255,.1); border-radius: 3px;
+    margin-top: 5px; overflow: hidden; margin-left: auto; }
+  #boost-fill { height: 100%; width: 35%; background: linear-gradient(90deg,#00c8ff,#7df3ff); border-radius: 3px; }
+  #boost-meter.active { box-shadow: 0 0 12px #00e5ff; }
+
+  #flash { position: absolute; top: 26%; left: 50%; transform: translateX(-50%);
+    font-weight: 800; letter-spacing: 3px; text-align: center; white-space: nowrap;
+    text-shadow: 0 0 18px rgba(0,229,255,.8), 0 2px 6px rgba(0,0,0,.6); }
+  #flash.big { font-size: 44px; color: #baf3ff; }
+  #flash.small { font-size: 24px; color: #ffd75e; }
+
+  /* ---------- menus ---------- */
+  .menu { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; background: radial-gradient(ellipse at 50% 40%, rgba(10,20,40,.82), rgba(2,4,10,.94));
+    backdrop-filter: blur(6px); z-index: 20; }
+  .title { font-size: 64px; font-weight: 900; letter-spacing: 10px;
+    background: linear-gradient(90deg, #00e5ff, #baf3ff 40%, #ffb347 75%, #ff5533);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 22px rgba(0,200,255,.45)); }
+  .subtitle { font-size: 13px; letter-spacing: 6px; color: #8fd8ff; margin: 6px 0 30px; opacity: .9; }
+  .btn { pointer-events: auto; cursor: pointer; font-size: 18px; font-weight: 700; letter-spacing: 3px;
+    color: #031018; background: linear-gradient(90deg, #00e5ff, #6ef0ff); border: 0; border-radius: 8px;
+    padding: 14px 52px; margin: 8px; box-shadow: 0 0 24px rgba(0,220,255,.4); transition: transform .12s, box-shadow .12s; }
+  .btn:hover { transform: scale(1.05); box-shadow: 0 0 34px rgba(0,220,255,.7); }
+  .btn.alt { background: linear-gradient(90deg, #ffb347, #ffd27a); box-shadow: 0 0 24px rgba(255,180,60,.35); }
+  .controls { margin-top: 26px; display: grid; grid-template-columns: auto auto; gap: 6px 22px;
+    font-size: 13px; color: #b8d8ee; }
+  .controls b { color: #7fe8ff; font-weight: 700; }
+  .fin-row { display: flex; justify-content: space-between; width: 300px; padding: 7px 4px;
+    border-bottom: 1px solid rgba(120,220,255,.18); font-size: 16px; }
+  .fin-row b { color: #ffd75e; font-variant-numeric: tabular-nums; }
+  #finish .title { font-size: 44px; }
+  #dead-overlay { position: fixed; inset: 0; background: radial-gradient(ellipse, rgba(120,10,30,.45), rgba(0,0,0,.75));
+    display: flex; align-items: center; justify-content: center; z-index: 15;
+    font-size: 52px; font-weight: 900; letter-spacing: 8px; color: #ff5566;
+    text-shadow: 0 0 30px rgba(255,40,60,.8); }
+  #errbox { position: fixed; bottom: 8px; left: 8px; right: 8px; max-height: 130px; overflow: auto;
+    background: rgba(120,10,10,.9); color: #ffdcdc; font: 12px monospace; padding: 8px; z-index: 99;
+    border-radius: 6px; white-space: pre-wrap; }
+  #autotest { position: fixed; top: 40%; left: 8px; max-width: 420px; max-height: 55vh; overflow: auto;
+    background: rgba(0,20,10,.85); color: #8fff9f; font: 11px monospace; padding: 8px; z-index: 98;
+    display: none; white-space: pre-wrap; }
+  body.autotest #autotest { display: block; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div class="hud-box" id="hud-tl">
+    <div class="label">SCORE</div>
+    <div id="score">000000</div>
+  </div>
+  <div class="hud-box" id="hud-tc">
+    <div id="time">0:00.00</div>
+    <div id="zone">ZONE 1 · EMERALD CANYON</div>
+  </div>
+  <div class="hud-box" id="hud-tr">
+    <div id="fps">60 FPS</div>
+  </div>
+  <div class="hud-box" id="hud-bl">
+    <div id="rings-wrap">
+      <div id="ring-icon"></div>
+      <div id="rings">000</div>
+    </div>
+  </div>
+  <div class="hud-box" id="hud-br">
+    <div id="speed">000</div>
+    <div id="speed-unit">KM/H</div>
+    <div id="speedbar"><div id="speedbar-fill"></div></div>
+    <div id="boost-meter"><div id="boost-fill"></div></div>
+  </div>
+  <div id="flash"></div>
+</div>
+
+<div id="dead-overlay" class="hidden">WRECKED</div>
+
+<div id="menu" class="menu">
+  <div class="title">PRISM DASH</div>
+  <div class="subtitle">HIGH-SPEED 3D MOMENTUM RUNNER</div>
+  <button class="btn" id="btn-start">START RUN</button>
+  <div class="controls">
+    <span><b>A / D · ←/→</b></span><span>steer</span>
+    <span><b>SPACE / W</b></span><span>jump</span>
+    <span><b>S / ↓</b></span><span>brake</span>
+    <span><b>SHIFT / X</b></span><span>boost (uses meter)</span>
+    <span><b>ESC / P</b></span><span>pause</span>
+    <span><b>M</b></span><span>mute · <b>R</b> restart</span>
+    <span><b>GAMEPAD</b></span><span>stick + A + X</span>
+  </div>
+</div>
+
+<div id="pause" class="menu hidden">
+  <div class="title" style="font-size:40px">PAUSED</div>
+  <button class="btn" id="btn-resume">RESUME</button>
+  <button class="btn alt" id="btn-restart">RESTART</button>
+</div>
+
+<div id="finish" class="menu hidden">
+  <div class="title">RUN COMPLETE</div>
+  <div class="subtitle">GOAL REACHED</div>
+  <div id="finish-stats"></div>
+  <button class="btn" id="btn-again" style="margin-top:24px">RUN AGAIN</button>
+  <button class="btn alt hidden" id="btn-finish-restart">RESTART</button>
+</div>
+
+<pre id="autotest"></pre>
+<div id="errbox" class="hidden"></div>
+
+<script type="importmap">
+{ "imports": { "three": "./lib/three.module.js" } }
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
